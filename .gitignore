@@ -166,3 +166,6 @@ cython_debug/
 
 # Secret Key
 secrets.json
+
+# DS_STORE
+.DS_STORE
