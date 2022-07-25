@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from rest_framework.decorators import api_view
 from accounts.models import User
 from allauth.socialaccount.models import SocialAccount
 
@@ -12,14 +13,20 @@ import requests
 from rest_framework import status
 from json.decoder import JSONDecodeError 
 
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+
 BASE_URL = 'http://localhost:8000/'
 KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 
+# kakao 로그인 요청
+# GET /oauth/authorize -> 카카오 계정 로그인 및 동의 진행 -> callback redirect
 def kakao_login(request):
     rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
     return redirect(
         f"https://kauth.kakao.com/oauth/authorize?client_id={rest_api_key}&redirect_uri={KAKAO_CALLBACK_URI}&response_type=code"
     )
+# Token으로 사용자 정보 확인 => 로그인 or 회원가입 처리
 def kakao_callback(request):
     rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
     code = request.GET.get("code")
@@ -86,14 +93,10 @@ class KakaoLogin(SocialLoginView):
     client_class = OAuth2Client
     callback_url = KAKAO_CALLBACK_URI
 
-# def kakao_login(request):
-#     rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
-#     return redirect(
-#         f"https://kauth.kakao.com/oauth/authorize?client_id={rest_api_key}&redirect_uri={KAKAO_CALLBACK_URI}&response_type=code"
-# )
 
-
-def kakao_get_userinfo(request, access_token):
+@api_view()
+def kakao_get_userinfo(request):
+    access_token = request.GET.get('')
     profile_request = requests.get(
         "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
     profile_json = profile_request.json()
