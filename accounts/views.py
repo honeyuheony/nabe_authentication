@@ -2,10 +2,13 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from rest_framework.decorators import api_view
+from rest_framework.views import APIView
+from rest_framework import authentication, permissions
 from accounts.models import User
 from allauth.socialaccount.models import SocialAccount
 
 from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework_simplejwt.tokens import RefreshToken
 from allauth.socialaccount.providers.kakao import views as kakao_view
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 
@@ -16,96 +19,95 @@ from json.decoder import JSONDecodeError
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
+'''
+django JWT 와 kakao access token 만료기간 동일하게 설정
+사용자가 API 호출 (Django 토큰 검사)
+1. 로그인풀려있으면 => 403 messages.massage : 'Token is invalid or expired'
+⇒ 메시지 확인 후 jwt refresh token 통해 재발급 후 API 재호출
+⇒ 없으면 카카오 로그인 다시 진행 (로그아웃)
+2. 로그인 유효하면 
+'''
+class KakaoTokenRefresh(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request):
+        refresh_token = request.query_params.get('kakao_refresh_token')
+        code = request.GET.get("code")
+        rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
+        kakao_token_api = 'https://kauth.kakao.com/oauth/token'
+        data = {
+            'grant_type': 'refresh_token',
+            'client_id': rest_api_key,
+            'refresh_token': refresh_token
+        }
+        token_response = requests.post(kakao_token_api, data=data)
+
+        return JsonResponse(token_response.json())
+
 BASE_URL = 'http://localhost:8000/'
 KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 
 # kakao 로그인 요청
 # GET /oauth/authorize -> 카카오 계정 로그인 및 동의 진행 -> callback redirect
-def kakao_login(request):
-    rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
-    return redirect(
-        f"https://kauth.kakao.com/oauth/authorize?client_id={rest_api_key}&redirect_uri={KAKAO_CALLBACK_URI}&response_type=code"
-    )
+class KakaoAuthorize(APIView):
+    def get(self, request):
+        rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
+        redirect_uri = 'http://localhost:8000/accounts/signin/kakao/callback'
+        kakao_auth_api = 'https://kauth.kakao.com/oauth/authorize?response_type=code'
+
+        return redirect(
+            f'{kakao_auth_api}&client_id={rest_api_key}&redirect_uri={redirect_uri}'
+        )
 # Token으로 사용자 정보 확인 => 로그인 or 회원가입 처리
-def kakao_callback(request):
-    rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
-    code = request.GET.get("code")
-    redirect_uri = KAKAO_CALLBACK_URI
-    """
-    Access Token Request
-    """
-    token_req = requests.get(
-        f"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={rest_api_key}&redirect_uri={redirect_uri}&code={code}")
-    token_req_json = token_req.json()
-    error = token_req_json.get("error")
-    if error is not None:
-        raise JSONDecodeError(error)
-    access_token = token_req_json.get("access_token")
-    """
-    Email Request
-    """
-    profile_request = requests.get(
-        "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
-    profile_json = profile_request.json()
-    kakao_account = profile_json.get('kakao_account')
-    """
-    kakao_account에서 이메일 외에    카카오톡 프로필 이미지, 배경 이미지 url 가져올 수 있음
-    print(kakao_account) 참고
-    """
-    print(kakao_account)
-    email = kakao_account.get('email')
-    """
-    Signup or Signin Request
-    """
-    try:
-        user = User.objects.get(email=email)
-        # 기존에 가입된 유저의 Provider가 kakao가 아니면 에러 발생, 맞으면 로그인
-        # 다른 SNS로 가입된 유저
-        social_user = SocialAccount.objects.get(user=user)
-        if social_user is None:
-            return JsonResponse({'err_msg': 'email exists but not social user'}, status=status.HTTP_400_BAD_REQUEST)
-        if social_user.provider != 'kakao':
-            return JsonResponse({'err_msg': 'no matching social type'}, status=status.HTTP_400_BAD_REQUEST)
-        # 기존에 Google로 가입된 유저
-        data = {'access_token': access_token, 'code': code}
+class KaKaoSignInCallBack(APIView):
+    def get(self, request):
+        code = request.GET.get("code")
+        rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
+        kakao_token_api = 'https://kauth.kakao.com/oauth/token'
+        data = {
+            'grant_type': 'authorization_code',
+            'client_id': rest_api_key,
+            'redirection_uri': KAKAO_CALLBACK_URI,
+            'code': code
+        }
+        token_response = requests.post(kakao_token_api, data=data)
+        kakao_access_token = token_response.json().get('access_token')
+        kakao_refresh_token = token_response.json().get('refresh_token')
+        
+        user_info_response = requests.get('https://kapi.kakao.com/v1/oidc/userinfo', headers={"Authorization": f'Bearer ${kakao_access_token}'}).json()
+        data = {'code': code, 'access_token': kakao_access_token}
         accept = requests.post(
             f"{BASE_URL}accounts/kakao/login/finish/", data=data)
-        accept_status = accept.status_code
-        if accept_status != 200:
-            return JsonResponse({'err_msg': 'failed to signin'}, status=accept_status)
-        accept_json = accept.json()
-        # accept_json.pop('user', None)
-        return JsonResponse(accept_json)
-    except User.DoesNotExist:
-        # 기존에 가입된 유저가 없으면 새로 가입
-        data = {'access_token': access_token, 'code': code}
-        accept = requests.post(
-            f"{BASE_URL}accounts/kakao/login/finish/", data=data)
-        accept_status = accept.status_code
-        if accept_status != 200:
-            return JsonResponse({'err_msg': 'failed to signup'}, status=accept_status)
-        # user의 pk, email, first name, last name과 Access Token, Refresh token 가져옴
-        accept_json = accept.json()
-        # accept_json.pop('user', None)
-        return JsonResponse(accept_json)
+        accept_status = accept.status_code  
+        if accept_status == 200:
+            email = user_info_response.get('email')
+            jwt = accept.json().get('access_token')
+            refresh_token = accept.json().get('refresh_token')
+            return JsonResponse({'drf_access_token': jwt, 'drf_refresh_token': refresh_token, 
+                                 'kakao_access_token': kakao_access_token, 'kakao_refresh_token': kakao_refresh_token})
+        else:
+            return JsonResponse({"error": "error"})
+
 class KakaoLogin(SocialLoginView):
     adapter_class = kakao_view.KakaoOAuth2Adapter
     client_class = OAuth2Client
     callback_url = KAKAO_CALLBACK_URI
 
+class KakaoUserinfo(APIView):
+    def get(self, request):
+        print(request.GET)
+        access_token = request.GET.get('access_token')
+        print(access_token)
+        profile_request = requests.get(
+            "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
+        profile_json = profile_request.json()
+        kakao_account = profile_json.get('kakao_account')
+        userinfo = {}
+        userinfo['email'] = kakao_account.get('email', None)
+        userinfo['nickname'] = kakao_account.get('profile', None).get('nickname', None)
+        userinfo['age_range'] = kakao_account.get('age_range', None)
+        userinfo['birthday'] = kakao_account.get('birthday', None)
+        userinfo['gender'] = kakao_account.get('gender', None)
+        return JsonResponse(userinfo)
 
-@api_view()
-def kakao_get_userinfo(request):
-    access_token = request.GET.get('')
-    profile_request = requests.get(
-        "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
-    profile_json = profile_request.json()
-    kakao_account = profile_json.get('kakao_account')
-    userinfo = {}
-    userinfo['email'] = kakao_account.get('email', None)
-    userinfo['nickname'] = kakao_account.get('profile', None).get('nickname', None)
-    userinfo['age_range'] = kakao_account.get('age_range', None)
-    userinfo['birthday'] = kakao_account.get('birthday', None)
-    userinfo['gender'] = kakao_account.get('gender', None)
-    return JsonResponse(userinfo)
+
     

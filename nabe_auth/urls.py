@@ -14,10 +14,15 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from accounts import views as account_views
 from django.urls import path, include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from rest_framework_simplejwt.views import (
+    TokenVerifyView,
+    TokenRefreshView,
+)
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -41,4 +46,7 @@ urlpatterns = [
     path('accounts/', include('dj_rest_auth.urls')),
     path('accounts/', include('allauth.urls')),
     path('accounts/', include('accounts.urls')),
+    path('token/drf/refresh/', TokenRefreshView.as_view(), name='drf_token_refresh'),
+    path('token/drf/verify/', TokenVerifyView.as_view(), name='drf_token_verify'),
+    path('token/kakao/refresh/', account_views.KakaoTokenRefresh.as_view(), name='kakao_token_refresh'),
 ]
