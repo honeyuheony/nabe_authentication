@@ -46,6 +46,7 @@ urlpatterns = [
     path('accounts/', include('dj_rest_auth.urls')),
     path('accounts/', include('allauth.urls')),
     path('accounts/', include('accounts.urls')),
+    path('service/', include('service.urls')),
     path('token/drf/refresh/', TokenRefreshView.as_view(), name='drf_token_refresh'),
     path('token/drf/verify/', TokenVerifyView.as_view(), name='drf_token_verify'),
     path('token/kakao/refresh/', account_views.KakaoTokenRefresh.as_view(), name='kakao_token_refresh'),
