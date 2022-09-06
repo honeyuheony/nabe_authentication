@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.http import JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
@@ -102,7 +103,7 @@ class KakaoUserinfo(APIView):
         profile_json = profile_request.json()
         kakao_account = profile_json.get('kakao_account')
         if kakao_account == None:
-            return JsonResponse({'Error': 'Token is invaild'})
+            return HttpResponse({'Token is invaild'}, status=401)
         userinfo = {}
         userinfo['email'] = kakao_account.get('email', None)
         userinfo['nickname'] = kakao_account.get('profile', None).get('nickname', None)
