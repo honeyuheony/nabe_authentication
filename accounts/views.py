@@ -101,6 +101,8 @@ class KakaoUserinfo(APIView):
             "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
         profile_json = profile_request.json()
         kakao_account = profile_json.get('kakao_account')
+        if kakao_account == None:
+            return JsonResponse({'Error': 'Token is invaild'})
         userinfo = {}
         userinfo['email'] = kakao_account.get('email', None)
         userinfo['nickname'] = kakao_account.get('profile', None).get('nickname', None)
@@ -108,6 +110,8 @@ class KakaoUserinfo(APIView):
         userinfo['birthday'] = kakao_account.get('birthday', None)
         userinfo['gender'] = kakao_account.get('gender', None)
         return JsonResponse(userinfo)
+
+
 
 
     
