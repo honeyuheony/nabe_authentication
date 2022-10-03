@@ -44,7 +44,7 @@ class KakaoTokenRefresh(APIView):
 
         return JsonResponse(token_response.json())
 
-BASE_URL = 'http://localhost:8000/'
+BASE_URL = 'http://15.164.210.47:8000/'
 KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 
 # kakao 로그인 요청
@@ -52,7 +52,7 @@ KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 class KakaoAuthorize(APIView):
     def get(self, request):
         rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
-        redirect_uri = 'http://localhost:8000/accounts/signin/kakao/callback'
+        redirect_uri = f'{BASE_DIR}/accounts/signin/kakao/callback'
         kakao_auth_api = 'https://kauth.kakao.com/oauth/authorize?response_type=code'
 
         return redirect(
