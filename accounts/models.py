@@ -1,3 +1,4 @@
+from unittest.util import _MAX_LENGTH
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractUser, BaseUserManager
@@ -39,6 +40,8 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True, max_length=255)
+    kakao_access_token = models.CharField(max_length = 255, null=True)
+    kakao_refresh_token = models.CharField(max_length = 255, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

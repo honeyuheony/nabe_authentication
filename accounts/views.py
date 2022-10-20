@@ -81,10 +81,12 @@ class KaKaoSignInCallBack(APIView):
         accept_status = accept.status_code  
         if accept_status == 200:
             email = user_info_response.get('email')
+            user = User.objects.get(email=email)
+            user.kakao_access_token = kakao_access_token
+            user.kakao_refresh_token = kakao_refresh_token
             jwt = accept.json().get('access_token')
             refresh_token = accept.json().get('refresh_token')
-            return JsonResponse({'drf_access_token': jwt, 'drf_refresh_token': refresh_token, 
-                                 'kakao_access_token': kakao_access_token, 'kakao_refresh_token': kakao_refresh_token})
+            return JsonResponse({"email": email, 'drf_access_token': jwt, 'drf_refresh_token': refresh_token})
         else:
             return JsonResponse({"error": "error"})
 
@@ -95,9 +97,7 @@ class KakaoLogin(SocialLoginView):
 
 class KakaoUserinfo(APIView):
     def get(self, request):
-        print(request.GET)
-        access_token = request.GET.get('access_token')
-        print(access_token)
+        access_token = request.user.kakao_access_token
         profile_request = requests.get(
             "https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {access_token}"})
         profile_json = profile_request.json()
