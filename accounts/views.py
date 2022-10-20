@@ -50,9 +50,10 @@ KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 # kakao 로그인 요청
 # GET /oauth/authorize -> 카카오 계정 로그인 및 동의 진행 -> callback redirect
 class KakaoAuthorize(APIView):
+    permission_classes = [permissions.AllowAny]
     def get(self, request):
         rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
-        redirect_uri = f'{BASE_DIR}/accounts/signin/kakao/callback'
+        redirect_uri = f'{BASE_URL}/accounts/signin/kakao/callback'
         kakao_auth_api = 'https://kauth.kakao.com/oauth/authorize?response_type=code'
 
         return redirect(
@@ -60,6 +61,7 @@ class KakaoAuthorize(APIView):
         )
 # Token으로 사용자 정보 확인 => 로그인 or 회원가입 처리
 class KaKaoSignInCallBack(APIView):
+    permission_classes = [permissions.AllowAny]
     def get(self, request):
         code = request.GET.get("code")
         rest_api_key = getattr(settings, 'KAKAO_REST_API_KEY')
@@ -84,6 +86,7 @@ class KaKaoSignInCallBack(APIView):
             user = User.objects.get(email=email)
             user.kakao_access_token = kakao_access_token
             user.kakao_refresh_token = kakao_refresh_token
+            user.save()
             jwt = accept.json().get('access_token')
             refresh_token = accept.json().get('refresh_token')
             return JsonResponse({"email": email, 'drf_access_token': jwt, 'drf_refresh_token': refresh_token})
@@ -91,6 +94,7 @@ class KaKaoSignInCallBack(APIView):
             return JsonResponse({"error": "error"})
 
 class KakaoLogin(SocialLoginView):
+    permission_classes = [permissions.AllowAny]
     adapter_class = kakao_view.KakaoOAuth2Adapter
     client_class = OAuth2Client
     callback_url = KAKAO_CALLBACK_URI
@@ -103,7 +107,8 @@ class KakaoUserinfo(APIView):
         profile_json = profile_request.json()
         kakao_account = profile_json.get('kakao_account')
         if kakao_account == None:
-            return HttpResponse({'Token is invaild'}, status=401)
+            #Token is invaild
+            return HttpResponse({request.user}, status=401)
         userinfo = {}
         userinfo['email'] = kakao_account.get('email', None)
         userinfo['nickname'] = kakao_account.get('profile', None).get('nickname', None)
