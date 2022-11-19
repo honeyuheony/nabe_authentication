@@ -16,24 +16,32 @@ from pathlib import Path
 import os
 import json
 import sys
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 # SECRET KEY
-ROOT_DIR = os.path.dirname(BASE_DIR)
-SECRET_BASE_FILE = os.path.join(BASE_DIR, 'secrets.json')
-secrets = json.loads(open(SECRET_BASE_FILE).read())
-for key, value in secrets.items():
-    setattr(sys.modules[__name__], key, value)
+# ROOT_DIR = os.path.dirname(BASE_DIR)
+# SECRET_BASE_FILE = os.path.join(BASE_DIR, 'secrets.json')
+# secrets = json.loads(open(SECRET_BASE_FILE).read())
+# for key, value in secrets.items():
+#     setattr(sys.modules[__name__], key, value)
+
+KAKAO_REST_API_KEY = config("KAKAO_REST_API_KEY")
+SECRET_KEY = config("SECRET_KEY")
+STATE = config("STATE")
+DATABASES = config("DATABASES")
+
+
 
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['15.164.210.47']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -47,6 +55,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    # django-ninja
+    'ninja_extra',
     # my app
     'accounts',
     # django-rest-framework
@@ -75,8 +85,8 @@ REST_FRAMEWORK = {
     ),
 }
 
-SITE_ID = 5
-AUTH_USER_MODEL = 'accounts.User' 
+SITE_ID = 1
+AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
